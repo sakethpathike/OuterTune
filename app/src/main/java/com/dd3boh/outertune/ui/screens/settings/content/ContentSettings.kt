@@ -1,25 +1,39 @@
-package com.dd3boh.outertune.ui.screens.settings
+package com.dd3boh.outertune.ui.screens.settings.content
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
 import com.dd3boh.outertune.R
@@ -46,6 +60,7 @@ import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
 import com.zionhuang.innertube.utils.parseCookieString
+import kotlinx.coroutines.launch
 import java.net.Proxy
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,13 +77,27 @@ fun ContentSettings(
         "SAPISID" in parseCookieString(innerTubeCookie)
     }
     val (ytmSync, onYtmSyncChange) = rememberPreference(YtmSyncKey, defaultValue = true)
-    val (contentLanguage, onContentLanguageChange) = rememberPreference(key = ContentLanguageKey, defaultValue = "system")
-    val (contentCountry, onContentCountryChange) = rememberPreference(key = ContentCountryKey, defaultValue = "system")
+    val (contentLanguage, onContentLanguageChange) = rememberPreference(
+        key = ContentLanguageKey,
+        defaultValue = "system"
+    )
+    val (contentCountry, onContentCountryChange) = rememberPreference(
+        key = ContentCountryKey,
+        defaultValue = "system"
+    )
 
-    val (proxyEnabled, onProxyEnabledChange) = rememberPreference(key = ProxyEnabledKey, defaultValue = false)
-    val (proxyType, onProxyTypeChange) = rememberEnumPreference(key = ProxyTypeKey, defaultValue = Proxy.Type.HTTP)
-    val (proxyUrl, onProxyUrlChange) = rememberPreference(key = ProxyUrlKey, defaultValue = "host:port")
-
+    val (proxyEnabled, onProxyEnabledChange) = rememberPreference(
+        key = ProxyEnabledKey,
+        defaultValue = false
+    )
+    val (proxyType, onProxyTypeChange) = rememberEnumPreference(
+        key = ProxyTypeKey,
+        defaultValue = Proxy.Type.HTTP
+    )
+    val (proxyUrl, onProxyUrlChange) = rememberPreference(
+        key = ProxyUrlKey,
+        defaultValue = "host:port"
+    )
 
     Column(
         Modifier
@@ -94,7 +123,17 @@ fun ContentSettings(
             onCheckedChange = onYtmSyncChange,
             isEnabled = isLoggedIn
         )
-
+        PreferenceGroupTitle(
+            title = "CONTENT IMPORT"
+        )
+        PreferenceEntry(
+            title = { Text(text = "Import from Spotify") },
+            description = null,
+            icon = { Icon(Icons.Rounded.Download, null) },
+            onClick = {
+                navController.navigate("settings/content/import_from_spotify")
+            }
+        )
         PreferenceGroupTitle(
             title = "LOCALIZATION"
         )
