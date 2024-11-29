@@ -56,6 +56,7 @@ object AppModule {
             install(ContentNegotiation) {
                 json(Json {
                     ignoreUnknownKeys = true
+                    coerceInputValues = true
                 })
             }
         }
