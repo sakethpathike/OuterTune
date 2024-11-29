@@ -1130,7 +1130,13 @@ class MainActivity : ComponentActivity() {
                                     LoginScreen(navController)
                                 }
                                 composable("settings/content/import_from_spotify") {
-                                    ImportFromSpotifyScreen(navController)
+                                    val isMiniPlayerVisible = rememberSaveable {
+                                        mutableStateOf(false)
+                                    }
+                                    LaunchedEffect(playerBottomSheetState.isCollapsed) {
+                                        isMiniPlayerVisible.value = playerBottomSheetState.isCollapsed
+                                    }
+                                    ImportFromSpotifyScreen(navController, isMiniPlayerVisible = isMiniPlayerVisible)
                                 }
                             }
                         }
