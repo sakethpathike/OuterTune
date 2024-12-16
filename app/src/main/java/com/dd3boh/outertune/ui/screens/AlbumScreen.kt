@@ -18,10 +18,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Download
@@ -50,6 +51,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -62,22 +64,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastForEachIndexed
-import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.media3.exoplayer.offline.Download
-import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.LocalDownloadUtil
+import com.dd3boh.outertune.LocalIsInternetConnected
 import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
@@ -95,15 +98,18 @@ import com.dd3boh.outertune.ui.component.AutoResizeText
 import com.dd3boh.outertune.ui.component.FontSizeRange
 import com.dd3boh.outertune.ui.component.IconButton
 import com.dd3boh.outertune.ui.component.LocalMenuState
+import com.dd3boh.outertune.ui.component.NavigationTitle
 import com.dd3boh.outertune.ui.component.SelectHeader
 import com.dd3boh.outertune.ui.component.SongListItem
 import com.dd3boh.outertune.ui.component.SwipeToQueueBox
+import com.dd3boh.outertune.ui.component.YouTubeGridItem
 import com.dd3boh.outertune.ui.component.shimmer.ButtonPlaceholder
 import com.dd3boh.outertune.ui.component.shimmer.ListItemPlaceHolder
 import com.dd3boh.outertune.ui.component.shimmer.ShimmerHost
 import com.dd3boh.outertune.ui.component.shimmer.TextPlaceholder
 import com.dd3boh.outertune.ui.menu.AlbumMenu
 import com.dd3boh.outertune.ui.menu.SongMenu
+import com.dd3boh.outertune.ui.menu.YouTubeAlbumMenu
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.ui.utils.getNSongsString
 import com.dd3boh.outertune.utils.joinByBullet
@@ -116,15 +122,20 @@ fun AlbumScreen(
     scrollBehavior: TopAppBarScrollBehavior,
     viewModel: AlbumViewModel = hiltViewModel(),
 ) {
-    val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
     val menuState = LocalMenuState.current
     val database = LocalDatabase.current
     val playerConnection = LocalPlayerConnection.current ?: return
+    val isNetworkConnected = LocalIsInternetConnected.current
+
+    val scope = rememberCoroutineScope()
+
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
 
     val albumWithSongs by viewModel.albumWithSongs.collectAsState()
+    val otherVersions by viewModel.otherVersions.collectAsState()
     val state = rememberLazyListState()
 
     // multiselect
@@ -210,9 +221,11 @@ fun AlbumScreen(
                                     ).toSpanStyle()
                                 ) {
                                     albumWithSongsLocal.artists.fastForEachIndexed { index, artist ->
-                                        pushStringAnnotation(artist.id, artist.name)
-                                        append(artist.name)
-                                        pop()
+                                        withLink(
+                                            LinkAnnotation.Clickable(artist.id) {
+                                                navController.navigate("artist/${artist.id}")
+                                            }
+                                        ) { append(artist.name) }
                                         if (index != albumWithSongsLocal.artists.lastIndex) {
                                             append(", ")
                                         }
@@ -220,11 +233,7 @@ fun AlbumScreen(
                                 }
                             }
 
-                            ClickableText(annotatedString) { offset ->
-                                annotatedString.getStringAnnotations(offset, offset).firstOrNull()?.let { range ->
-                                    navController.navigate("artist/${range.tag}")
-                                }
-                            }
+                            Text(annotatedString)
 
                             Text(
                                 text = joinByBullet(
@@ -294,18 +303,8 @@ fun AlbumScreen(
                                     else -> {
                                         IconButton(
                                             onClick = {
-                                                albumWithSongsLocal.songs.forEach { song ->
-                                                    val downloadRequest = DownloadRequest.Builder(song.id, song.id.toUri())
-                                                        .setCustomCacheKey(song.id)
-                                                        .setData(song.song.title.toByteArray())
-                                                        .build()
-                                                    DownloadService.sendAddDownload(
-                                                        context,
-                                                        ExoDownloadService::class.java,
-                                                        downloadRequest,
-                                                        false
-                                                    )
-                                                }
+                                                val songs = albumWithSongsLocal.songs.map{ it.toMediaMetadata() }
+                                                downloadUtil.download(songs)
                                             }
                                         ) {
                                             Icon(
@@ -428,7 +427,9 @@ fun AlbumScreen(
                         }
                     }
 
+                    val enabled = song.song.isAvailableOffline() || isNetworkConnected
                     SwipeToQueueBox(
+                        enabled = enabled,
                         item = song.toMediaItem(),
                         content = {
                             SongListItem(
@@ -469,17 +470,19 @@ fun AlbumScreen(
                                         onClick = {
                                             if (inSelectMode) {
                                                 onCheckedChange(index !in selection)
-                                            } else if (song.id == mediaMetadata?.id) {
-                                                playerConnection.player.togglePlayPause()
-                                            } else {
-                                                playerConnection.playQueue(
-                                                    ListQueue(
-                                                        title = albumWithSongsLocal.album.title,
-                                                        items = albumWithSongsLocal.songs.map { it.toMediaMetadata() },
-                                                        startIndex = index,
-                                                        playlistId = albumWithSongsLocal.album.playlistId
+                                            } else if (enabled) {
+                                                if (song.id == mediaMetadata?.id) {
+                                                    playerConnection.player.togglePlayPause()
+                                                } else {
+                                                    playerConnection.playQueue(
+                                                        ListQueue(
+                                                            title = albumWithSongsLocal.album.title,
+                                                            items = albumWithSongsLocal.songs.map { it.toMediaMetadata() },
+                                                            startIndex = index,
+                                                            playlistId = albumWithSongsLocal.album.playlistId
+                                                        )
                                                     )
-                                                )
+                                                }
                                             }
                                         },
                                         onLongClick = {
@@ -494,6 +497,45 @@ fun AlbumScreen(
                         },
                         snackbarHostState = snackbarHostState
                     )
+                }
+            }
+
+            if (otherVersions.isNotEmpty()) {
+                item {
+                    NavigationTitle(
+                        title = stringResource(R.string.other_versions),
+                    )
+                }
+                item {
+                    LazyRow {
+                        items(
+                            items = otherVersions,
+                            key = { it.id },
+                        ) { item ->
+                            YouTubeGridItem(
+                                item = item,
+                                isActive = mediaMetadata?.album?.id == item.id,
+                                isPlaying = isPlaying,
+                                coroutineScope = scope,
+                                modifier =
+                                Modifier
+                                    .combinedClickable(
+                                        onClick = { navController.navigate("album/${item.id}") },
+                                        onLongClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            menuState.show {
+                                                YouTubeAlbumMenu(
+                                                    albumItem = item,
+                                                    navController = navController,
+                                                    onDismiss = menuState::dismiss,
+                                                )
+                                            }
+                                        },
+                                    )
+                                    .animateItem(),
+                            )
+                        }
+                    }
                 }
             }
         } else {

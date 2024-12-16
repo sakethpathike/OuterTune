@@ -9,14 +9,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -86,6 +90,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.LocalDownloadUtil
+import com.dd3boh.outertune.LocalIsInternetConnected
 import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
@@ -131,10 +136,8 @@ import com.zionhuang.innertube.utils.completed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import org.burnoutcrew.reorderable.ReorderableItem
-import org.burnoutcrew.reorderable.detectReorder
-import org.burnoutcrew.reorderable.rememberReorderableLazyListState
-import org.burnoutcrew.reorderable.reorderable
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -148,6 +151,7 @@ fun LocalPlaylistScreen(
     val menuState = LocalMenuState.current
     val database = LocalDatabase.current
     val playerConnection = LocalPlayerConnection.current ?: return
+    val isNetworkConnected = LocalIsInternetConnected.current
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
 
@@ -300,62 +304,68 @@ fun LocalPlaylistScreen(
     }
 
     val headerItems = 2
+    val lazyListState = rememberLazyListState()
+    var dragInfo by remember {
+        mutableStateOf<Pair<Int, Int>?>(null)
+    }
     val reorderableState = rememberReorderableLazyListState(
-        onMove = { from, to ->
-            if (to.index >= headerItems && from.index >= headerItems) {
-                mutableSongs.move(from.index - headerItems, to.index - headerItems)
-            }
-        },
-        onDragEnd = { initialFromIndex, initialToIndex ->
-            if (initialFromIndex < 0 || initialToIndex < 0) {
-                return@rememberReorderableLazyListState
-            }
-            viewModel.viewModelScope.launch(Dispatchers.IO) {
-                val playlistSongMap = database.songMapsToPlaylist(viewModel.playlistId, 0)
+        lazyListState = lazyListState,
+        scrollThresholdPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
+    ) { from, to ->
+        if (to.index >= headerItems && from.index >= headerItems) {
+            val playlistSongMap = database.songMapsToPlaylist(viewModel.playlistId, 0)
 
-                var fromIndex = initialFromIndex - headerItems
-                val toIndex = initialToIndex - headerItems
+            var fromIndex = from.index - headerItems
+            val toIndex = to.index - headerItems
 
-                var successorIndex = if (fromIndex > toIndex) toIndex else toIndex + 1
+            var successorIndex = if (fromIndex > toIndex) toIndex else toIndex + 1
 
-                /*
-                * Because of how YouTube Music handles playlist changes, you necessarily need to
-                * have the SetVideoId of the successor when trying to move a song inside of a
-                * playlist.
-                * For this reason, if we are trying to move a song to the last element of a playlist,
-                * we need to first move it as penultimate and then move the last element before it.
-                */
-                if (successorIndex >= playlistSongMap.size) {
-                    playlistSongMap[fromIndex].setVideoId?.let { setVideoId ->
-                        playlistSongMap[toIndex].setVideoId?.let { successorSetVideoId ->
-                            viewModel.playlist.first()?.playlist?.browseId?.let { browseId ->
-                                YouTube.moveSongPlaylist(browseId, setVideoId, successorSetVideoId)
-                            }
-                        }
-                    }
-
-                    successorIndex = fromIndex
-                    fromIndex = toIndex
-                }
-
+            /*
+            * Because of how YouTube Music handles playlist changes, you necessarily need to
+            * have the SetVideoId of the successor when trying to move a song inside of a
+            * playlist.
+            * For this reason, if we are trying to move a song to the last element of a playlist,
+            * we need to first move it as penultimate and then move the last element before it.
+            */
+            if (successorIndex >= playlistSongMap.size) {
                 playlistSongMap[fromIndex].setVideoId?.let { setVideoId ->
-                    playlistSongMap[successorIndex].setVideoId?.let { successorSetVideoId ->
+                    playlistSongMap[toIndex].setVideoId?.let { successorSetVideoId ->
                         viewModel.playlist.first()?.playlist?.browseId?.let { browseId ->
                             YouTube.moveSongPlaylist(browseId, setVideoId, successorSetVideoId)
                         }
                     }
                 }
 
-                database.transaction {
-                    move(viewModel.playlistId, initialFromIndex - headerItems, initialToIndex - headerItems)
+                successorIndex = fromIndex
+                fromIndex = toIndex
+            }
+
+            playlistSongMap[fromIndex].setVideoId?.let { setVideoId ->
+                playlistSongMap[successorIndex].setVideoId?.let { successorSetVideoId ->
+                    viewModel.playlist.first()?.playlist?.browseId?.let { browseId ->
+                        YouTube.moveSongPlaylist(browseId, setVideoId, successorSetVideoId)
+                    }
                 }
             }
+
+            mutableSongs.move(from.index - headerItems, to.index - headerItems)
         }
-    )
+    }
+
+    LaunchedEffect(reorderableState.isAnyItemDragging) {
+        if (!reorderableState.isAnyItemDragging) {
+            dragInfo?.let { (from, to) ->
+                database.transaction {
+                    move(viewModel.playlistId, from, to)
+                }
+                dragInfo = null
+            }
+        }
+    }
 
     val showTopBarTitle by remember {
         derivedStateOf {
-            reorderableState.listState.firstVisibleItemIndex > 0
+            lazyListState.firstVisibleItemIndex > 0
         }
     }
 
@@ -363,16 +373,16 @@ fun LocalPlaylistScreen(
         modifier = Modifier.fillMaxSize()
     ) {
         LazyColumn(
-            state = reorderableState.listState,
-            contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues(),
-            modifier = Modifier.reorderable(reorderableState)
+            state = lazyListState,
+            contentPadding = LocalPlayerAwareWindowInsets.current.union(WindowInsets.ime).asPaddingValues(),
         ) {
             playlist?.let { playlist ->
                 if (playlist.songCount == 0) {
                     item {
                         EmptyPlaceholder(
                             icon = Icons.Rounded.MusicNote,
-                            text = stringResource(R.string.playlist_is_empty)
+                            text = stringResource(R.string.playlist_is_empty),
+                            modifier = Modifier.animateItem()
                         )
                     }
                 } else {
@@ -454,7 +464,7 @@ fun LocalPlaylistScreen(
                 key = { _, song -> song.map.id }
             ) { index, song ->
                 ReorderableItem(
-                    reorderableState = reorderableState,
+                    state = reorderableState,
                     key = song.map.id
                 ) {
                     val onCheckedChange: (Boolean) -> Unit = {
@@ -465,7 +475,9 @@ fun LocalPlaylistScreen(
                         }
                     }
 
+                    val enabled = song.song.song.isAvailableOffline() || isNetworkConnected
                     SwipeToQueueBox(
+                        enabled = enabled,
                         item = song.song.toMediaItem(),
                         content = {
                             SongListItem(
@@ -473,7 +485,6 @@ fun LocalPlaylistScreen(
                                 isActive = song.song.id == mediaMetadata?.id,
                                 isPlaying = isPlaying,
                                 showInLibraryIcon = true,
-
                                 trailingContent = {
                                     IconButton(
                                         onClick = {
@@ -497,7 +508,7 @@ fun LocalPlaylistScreen(
                                     if (sortType == PlaylistSongSortType.CUSTOM && !locked && editable) {
                                         IconButton(
                                             onClick = { },
-                                            modifier = Modifier.detectReorder(reorderableState)
+                                            modifier = Modifier.draggableHandle()
                                         ) {
                                             Icon(
                                                 Icons.Rounded.DragHandle,
@@ -514,17 +525,19 @@ fun LocalPlaylistScreen(
                                         onClick = {
                                             if (inSelectMode) {
                                                 onCheckedChange(song.map.id !in selection)
-                                            } else if (song.song.id == mediaMetadata?.id) {
-                                                playerConnection.player.togglePlayPause()
-                                            } else {
-                                                playerConnection.playQueue(
-                                                    ListQueue(
-                                                        title = playlist!!.playlist.name,
-                                                        items = songs.map { it.song.toMediaMetadata() },
-                                                        startIndex = index,
-                                                        playlistId = playlist?.playlist?.browseId
+                                            } else if (enabled) {
+                                                if (song.song.id == mediaMetadata?.id) {
+                                                    playerConnection.player.togglePlayPause()
+                                                } else {
+                                                    playerConnection.playQueue(
+                                                        ListQueue(
+                                                            title = playlist!!.playlist.name,
+                                                            items = songs.map { it.song.toMediaMetadata() },
+                                                            startIndex = index,
+                                                            playlistId = playlist?.playlist?.browseId
+                                                        )
                                                     )
-                                                )
+                                                }
                                             }
                                         },
                                         onLongClick = {

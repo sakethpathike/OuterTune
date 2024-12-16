@@ -38,6 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.dd3boh.outertune.LocalIsInternetConnected
 import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
@@ -76,6 +77,7 @@ fun LocalSearchScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val menuState = LocalMenuState.current
     val playerConnection = LocalPlayerConnection.current ?: return
+    val isNetworkConnected = LocalIsInternetConnected.current
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
 
@@ -156,54 +158,60 @@ fun LocalSearchScreen(
                     contentType = { CONTENT_TYPE_LIST }
                 ) { item ->
                     when (item) {
-                        is Song -> SwipeToQueueBox(
-                            item = item.toMediaItem(),
-                            content = {
-                                SongListItem(
-                                    song = item,
-                                    isActive = item.id == mediaMetadata?.id,
-                                    isPlaying = isPlaying,
-                                    trailingContent = {
-                                        IconButton(
-                                            onClick = {
-                                                menuState.show {
-                                                    SongMenu(
-                                                        originalSong = item,
-                                                        navController = navController
-                                                    ) {
-                                                        onDismiss()
-                                                        menuState.dismiss()
+                        is Song -> {
+                            val enabled = item.song.isAvailableOffline() || isNetworkConnected
+                            SwipeToQueueBox(
+                                enabled = enabled,
+                                item = item.toMediaItem(),
+                                content = {
+                                    SongListItem(
+                                        song = item,
+                                        isActive = item.id == mediaMetadata?.id,
+                                        isPlaying = isPlaying,
+                                        trailingContent = {
+                                            IconButton(
+                                                onClick = {
+                                                    menuState.show {
+                                                        SongMenu(
+                                                            originalSong = item,
+                                                            navController = navController
+                                                        ) {
+                                                            onDismiss()
+                                                            menuState.dismiss()
+                                                        }
+                                                    }
+                                                }
+                                            ) {
+                                                Icon(
+                                                    Icons.Rounded.MoreVert,
+                                                    contentDescription = null
+                                                )
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .clickable {
+                                                if (enabled) {
+                                                    if (item.id == mediaMetadata?.id) {
+                                                        playerConnection.player.togglePlayPause()
+                                                    } else {
+                                                        val songs = result.map
+                                                            .getOrDefault(LocalFilter.SONG, emptyList())
+                                                            .filterIsInstance<Song>()
+                                                            .map { it.toMediaMetadata() }
+                                                        playerConnection.playQueue(ListQueue(
+                                                            title = "${context.getString(R.string.queue_searched_songs)} $query",
+                                                            items = songs,
+                                                            startIndex = songs.indexOfFirst { it.id == item.id }
+                                                        ))
                                                     }
                                                 }
                                             }
-                                        ) {
-                                            Icon(
-                                                Icons.Rounded.MoreVert,
-                                                contentDescription = null
-                                            )
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .clickable {
-                                            if (item.id == mediaMetadata?.id) {
-                                                playerConnection.player.togglePlayPause()
-                                            } else {
-                                                val songs = result.map
-                                                    .getOrDefault(LocalFilter.SONG, emptyList())
-                                                    .filterIsInstance<Song>()
-                                                    .map { it.toMediaMetadata() }
-                                                playerConnection.playQueue(ListQueue(
-                                                    title = "${context.getString(R.string.queue_searched_songs)} $query",
-                                                    items = songs,
-                                                    startIndex = songs.indexOfFirst { it.id == item.id }
-                                                ))
-                                            }
-                                        }
-                                        .animateItemPlacement()
-                                )
-                            },
-                            snackbarHostState = snackbarHostState
-                        )
+                                            .animateItem()
+                                    )
+                                },
+                                snackbarHostState = snackbarHostState
+                            )
+                        }
 
                         is Album -> AlbumListItem(
                             album = item,
@@ -214,7 +222,7 @@ fun LocalSearchScreen(
                                     onDismiss()
                                     navController.navigate("album/${item.id}")
                                 }
-                                .animateItemPlacement()
+                                .animateItem()
                         )
 
                         is Artist -> ArtistListItem(
@@ -224,7 +232,7 @@ fun LocalSearchScreen(
                                     onDismiss()
                                     navController.navigate("artist/${item.id}")
                                 }
-                                .animateItemPlacement()
+                                .animateItem()
                         )
 
                         is Playlist -> PlaylistListItem(
@@ -234,7 +242,7 @@ fun LocalSearchScreen(
                                     onDismiss()
                                     navController.navigate("local_playlist/${item.id}")
                                 }
-                                .animateItemPlacement()
+                                .animateItem()
                         )
                     }
                 }
@@ -246,7 +254,8 @@ fun LocalSearchScreen(
                 ) {
                     EmptyPlaceholder(
                         icon = Icons.Rounded.Search,
-                        text = stringResource(R.string.no_results_found)
+                        text = stringResource(R.string.no_results_found),
+                        modifier = Modifier.animateItem()
                     )
                 }
             }

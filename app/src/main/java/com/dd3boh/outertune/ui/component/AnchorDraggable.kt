@@ -1,5 +1,7 @@
 package com.dd3boh.outertune.ui.component
 
+import androidx.compose.animation.core.DecayAnimationSpec
+import androidx.compose.animation.core.exponentialDecay
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -81,7 +83,11 @@ fun DraggableItem(
                         y = 0,
                     )
                 }
-                .anchoredDraggable(state, Orientation.Horizontal, reverseDirection = true),
+                .anchoredDraggable(
+                    state = state,
+                    orientation = Orientation.Horizontal,
+                    reverseDirection = true
+                ),
             content = content
         )
 
@@ -121,7 +127,8 @@ fun AddToQueueAction(modifier: Modifier) {
 fun SwipeToQueueBox(
     item: MediaItem,
     content: @Composable BoxScope.() -> Unit,
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    enabled: Boolean = true
 ) {
     val context = LocalContext.current
     val playerConnection = LocalPlayerConnection.current
@@ -132,6 +139,12 @@ fun SwipeToQueueBox(
     val density = LocalDensity.current
     var addedToQueue = false
 
+    val decayAnimationSpec: DecayAnimationSpec<Float> = exponentialDecay(
+        frictionMultiplier = 1.0f,
+        absVelocityThreshold = 1f
+    )
+
+
     val state = remember {
         AnchoredDraggableState(
             initialValue = DragAnchors.Center,
@@ -141,7 +154,8 @@ fun SwipeToQueueBox(
             },
             positionalThreshold = { distance -> distance * 0.7f },
             velocityThreshold = { with(density) { 10000.dp.toPx() } },
-            animationSpec = tween(),
+            snapAnimationSpec = tween(),
+            decayAnimationSpec = decayAnimationSpec,
             confirmValueChange = { dragValue ->
                 if (dragValue == DragAnchors.Start && !addedToQueue) {
                     addedToQueue = true
@@ -161,31 +175,37 @@ fun SwipeToQueueBox(
         )
     }
 
-    DraggableItem(
-        state = state,
-        content = {
-            content()
-        },
+    if (!enabled){
+        Box { content() }
+    }
+    else {
+        DraggableItem(
+            state = state,
+            content = {
+                content()
+            },
 
-        startAction = {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .align(Alignment.CenterStart),
-            ) {
-                AddToQueueAction(
-                    Modifier
-                        .width(defaultActionSize)
+            startAction = {
+                Box(
+                    modifier = Modifier
                         .fillMaxHeight()
-                        .offset {
-                            IntOffset(
-                                ((-state
-                                    .requireOffset() - defaultActionSize.toPx()))
-                                    .roundToInt(), 0
-                            )
-                        }
-                )
+                        .align(Alignment.CenterStart),
+                ) {
+                    AddToQueueAction(
+                        Modifier
+                            .width(defaultActionSize)
+                            .fillMaxHeight()
+                            .offset {
+                                IntOffset(
+                                    ((-state
+                                        .requireOffset() - defaultActionSize.toPx()))
+                                        .roundToInt(), 0
+                                )
+                            }
+                    )
+                }
             }
-        },
-    )
+        )
+    }
+
 }

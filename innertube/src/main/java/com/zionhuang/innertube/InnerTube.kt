@@ -1,6 +1,5 @@
 package com.zionhuang.innertube
 
-import com.zionhuang.innertube.encoder.brotli
 import com.zionhuang.innertube.models.Context
 import com.zionhuang.innertube.models.YouTubeClient
 import com.zionhuang.innertube.models.YouTubeLocale
@@ -47,6 +46,8 @@ class InnerTube {
             httpClient = createClient()
         }
 
+    var useLoginForBrowse: Boolean = false
+
     @OptIn(ExperimentalSerializationApi::class)
     private fun createClient() = HttpClient(OkHttp) {
         expectSuccess = true
@@ -60,7 +61,6 @@ class InnerTube {
         }
 
         install(ContentEncoding) {
-            brotli(1.0F)
             gzip(0.9F)
             deflate(0.8F)
         }
@@ -107,7 +107,7 @@ class InnerTube {
         params: String? = null,
         continuation: String? = null,
     ) = httpClient.post("search") {
-        ytClient(client)
+        ytClient(client, setLogin = useLoginForBrowse)
         setBody(
             SearchBody(
                 context = client.toContext(locale, visitorData),

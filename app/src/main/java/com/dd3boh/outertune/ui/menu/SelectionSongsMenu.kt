@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
@@ -28,14 +29,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
 import androidx.media3.exoplayer.offline.Download
-import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.LocalDownloadUtil
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.extensions.toMediaItem
 import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.playback.ExoDownloadService
 import com.dd3boh.outertune.playback.PlayerConnection.Companion.queueBoard
@@ -189,6 +189,15 @@ fun SelectionMediaMetadataMenu(
         }
 
         GridMenuItem(
+            icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
+            title = R.string.play_next,
+        ) {
+            onDismiss()
+            playerConnection.playNext(selection.map { it.toMediaItem() })
+            clearAction()
+        }
+
+        GridMenuItem(
             icon = R.drawable.shuffle,
             title = R.string.shuffle
         ) {
@@ -252,11 +261,11 @@ fun SelectionMediaMetadataMenu(
             database.query {
                 if (allLiked) {
                     selection.forEach { song ->
-                        update(song.toSongEntity().copy(liked = false))
+                        update(song.toSongEntity().toggleLike())
                     }
                 } else {
-                    selection.forEach { song ->
-                        update(song.toSongEntity().copy(liked = true))
+                    selection.filter { !it.liked }.forEach { song ->
+                        update(song.toSongEntity().toggleLike())
                     }
                 }
             }
@@ -265,18 +274,8 @@ fun SelectionMediaMetadataMenu(
         DownloadGridMenu(
             state = downloadState,
             onDownload = {
-                selection.filterNot { it.isLocal }.forEach { song ->
-                    val downloadRequest = DownloadRequest.Builder(song.id, song.id.toUri())
-                        .setCustomCacheKey(song.id)
-                        .setData(song.title.toByteArray())
-                        .build()
-                    DownloadService.sendAddDownload(
-                        context,
-                        ExoDownloadService::class.java,
-                        downloadRequest,
-                        false
-                    )
-                }
+                val songs = selection.filterNot { it.isLocal }
+                downloadUtil.download(songs)
             },
             onRemoveDownload = {
                 showRemoveDownloadDialog = true

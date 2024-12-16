@@ -27,6 +27,7 @@ val SlimNavBarKey = booleanPreferencesKey("slimNavBar")
  */
 const val SYSTEM_DEFAULT = "SYSTEM_DEFAULT"
 val YtmSyncKey = booleanPreferencesKey("ytmSync")
+val LikedAutoDownloadKey = stringPreferencesKey("likedAutoDownloadKey")
 val ContentLanguageKey = stringPreferencesKey("contentLanguage")
 val ContentCountryKey = stringPreferencesKey("contentCountry")
 val ProxyEnabledKey = booleanPreferencesKey("proxyEnabled")
@@ -78,6 +79,13 @@ val PauseListenHistoryKey = booleanPreferencesKey("pauseListenHistory")
 val PauseSearchHistoryKey = booleanPreferencesKey("pauseSearchHistory")
 val EnableKugouKey = booleanPreferencesKey("enableKugou")
 val EnableLrcLibKey = booleanPreferencesKey("enableLrcLib")
+val UseLoginForBrowse = booleanPreferencesKey("useLoginForBrowse")
+
+
+/**
+ * Local library
+ */
+val LocalLibraryEnableKey = booleanPreferencesKey("localLibraryEnable")
 
 
 /**
@@ -107,6 +115,7 @@ enum class ScannerMatchCriteria {
  * Experimental settings
  */
 val DevSettingsKey = booleanPreferencesKey("devSettings")
+val FirstSetupPassed = booleanPreferencesKey("firstSetupPassed")
 
 
 /**
@@ -200,6 +209,10 @@ val SearchSourceKey = stringPreferencesKey("searchSource")
 
 enum class SearchSource {
     LOCAL, ONLINE
+}
+
+enum class LikedAutodownloadMode {
+    OFF, ON, WIFI_ONLY
 }
 
 val VisitorDataKey = stringPreferencesKey("visitorData")

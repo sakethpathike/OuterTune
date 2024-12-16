@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Download
@@ -65,17 +64,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.exoplayer.offline.Download
-import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
@@ -168,8 +167,6 @@ fun OnlinePlaylistScreen(
     }
 
     val syncUtils = LocalSyncUtils.current
-
-    var isSyncing by remember { mutableStateOf(false) }
 
     LaunchedEffect(songs) {
         mutableSongs.apply {
@@ -282,19 +279,17 @@ fun OnlinePlaylistScreen(
                                                 ).toSpanStyle()
                                             ) {
                                                 if (artist.id != null) {
-                                                    pushStringAnnotation(artist.id!!, artist.name)
-                                                    append(artist.name)
-                                                    pop()
-                                                } else {
-                                                    append(artist.name)
-                                                }
+                                                    withLink(
+                                                        LinkAnnotation.Clickable(artist.id!!) {
+                                                            println("artist id: ${artist.id}")
+                                                            navController.navigate("artist/${artist.id}")
+                                                        }
+                                                    ) { append(artist.name) }
+                                                } else append(artist.name)
                                             }
                                         }
-                                        ClickableText(annotatedString) { offset ->
-                                            annotatedString.getStringAnnotations(offset, offset).firstOrNull()?.let { range ->
-                                                navController.navigate("artist/${range.tag}")
-                                            }
-                                        }
+
+                                        Text(annotatedString)
                                     }
 
                                     playlist.songCountText?.let { songCountText ->
@@ -387,37 +382,12 @@ fun OnlinePlaylistScreen(
                                                 else -> {
                                                     IconButton(
                                                         onClick = {
-                                                            if (!isSyncing) {
-                                                                isSyncing = true
-                                                                viewModel.viewModelScope.launch(
-                                                                    Dispatchers.IO
-                                                                ) {
-                                                                    syncUtils.syncPlaylist(
-                                                                        playlist.id,
-                                                                        dbPlaylist!!.id
-                                                                    )
-                                                                }
-
-                                                                songs.forEach { song ->
-                                                                    val downloadRequest =
-                                                                        DownloadRequest.Builder(
-                                                                            song.id,
-                                                                            song.id.toUri()
-                                                                        )
-                                                                            .setCustomCacheKey(song.id)
-                                                                            .setData(song.title.toByteArray())
-                                                                            .build()
-                                                                    DownloadService.sendAddDownload(
-                                                                        context,
-                                                                        ExoDownloadService::class.java,
-                                                                        downloadRequest,
-                                                                        false
-                                                                    )
-                                                                }
-                                                                isSyncing = false
+                                                            viewModel.viewModelScope.launch(Dispatchers.IO) {
+                                                                syncUtils.syncPlaylist(playlist.id, dbPlaylist!!.id)
                                                             }
-                                                        },
-                                                        enabled = !isSyncing
+                                                            val _songs = songs.map{ it.toMediaMetadata() }
+                                                            downloadUtil.download(_songs)
+                                                        }
                                                     ) {
                                                         Icon(
                                                             Icons.Rounded.Download,
@@ -610,7 +580,7 @@ fun OnlinePlaylistScreen(
                                                 }
                                             }
                                         )
-                                        .animateItemPlacement()
+                                        .animateItem()
                                 )
                             },
                             snackbarHostState = snackbarHostState

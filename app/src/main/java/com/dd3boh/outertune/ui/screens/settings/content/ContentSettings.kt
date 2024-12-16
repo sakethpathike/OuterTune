@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.ui.screens.settings.content
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,6 +11,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Person
@@ -45,6 +48,8 @@ import com.dd3boh.outertune.constants.ContentLanguageKey
 import com.dd3boh.outertune.constants.CountryCodeToName
 import com.dd3boh.outertune.constants.InnerTubeCookieKey
 import com.dd3boh.outertune.constants.LanguageCodeToName
+import com.dd3boh.outertune.constants.LikedAutoDownloadKey
+import com.dd3boh.outertune.constants.LikedAutodownloadMode
 import com.dd3boh.outertune.constants.ProxyEnabledKey
 import com.dd3boh.outertune.constants.ProxyTypeKey
 import com.dd3boh.outertune.constants.ProxyUrlKey
@@ -63,6 +68,7 @@ import com.zionhuang.innertube.utils.parseCookieString
 import kotlinx.coroutines.launch
 import java.net.Proxy
 
+@SuppressLint("PrivateResource")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContentSettings(
@@ -72,11 +78,12 @@ fun ContentSettings(
     val accountName by rememberPreference(AccountNameKey, "")
     val accountEmail by rememberPreference(AccountEmailKey, "")
     val accountChannelHandle by rememberPreference(AccountChannelHandleKey, "")
-    val innerTubeCookie by rememberPreference(InnerTubeCookieKey, "")
+    val (innerTubeCookie, onInnerTubeCookieChange) = rememberPreference(InnerTubeCookieKey, "")
     val isLoggedIn = remember(innerTubeCookie) {
         "SAPISID" in parseCookieString(innerTubeCookie)
     }
     val (ytmSync, onYtmSyncChange) = rememberPreference(YtmSyncKey, defaultValue = true)
+    val (likedAutoDownload, onLikedAutoDownload) = rememberEnumPreference(LikedAutoDownloadKey, LikedAutodownloadMode.OFF)
     val (contentLanguage, onContentLanguageChange) = rememberPreference(
         key = ContentLanguageKey,
         defaultValue = "system"
@@ -116,6 +123,15 @@ fun ContentSettings(
             icon = { Icon(Icons.Rounded.Person, null) },
             onClick = { navController.navigate("login") }
         )
+        if (isLoggedIn) {
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.logout)) },
+                icon = { Icon(Icons.AutoMirrored.Rounded.Logout, null) },
+                onClick = {
+                    onInnerTubeCookieChange("")
+                }
+            )
+        }
         SwitchPreference(
             title = { Text(stringResource(R.string.ytm_sync)) },
             icon = { Icon(Icons.Rounded.Sync, null) },
@@ -134,6 +150,19 @@ fun ContentSettings(
                 navController.navigate("settings/content/import_from_spotify")
             }
         )
+        ListPreference(
+            title = { Text(stringResource(R.string.like_autodownload)) },
+            icon = { Icon(Icons.Rounded.Favorite, null) },
+            values = listOf(LikedAutodownloadMode.OFF, LikedAutodownloadMode.ON, LikedAutodownloadMode.WIFI_ONLY),
+            selectedValue = likedAutoDownload,
+            valueText = { when (it){
+                LikedAutodownloadMode.OFF -> stringResource(androidx.compose.ui.R.string.state_off)
+                LikedAutodownloadMode.ON -> stringResource(androidx.compose.ui.R.string.state_on)
+                LikedAutodownloadMode.WIFI_ONLY -> stringResource(R.string.wifi_only)
+            } },
+            onValueSelected = onLikedAutoDownload
+        )
+
         PreferenceGroupTitle(
             title = "LOCALIZATION"
         )

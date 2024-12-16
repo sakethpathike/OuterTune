@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.List
+import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +61,7 @@ import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.viewmodels.LibraryAlbumsViewModel
 import com.dd3boh.outertune.extensions.isSyncEnabled
+import com.dd3boh.outertune.ui.component.EmptyPlaceholder
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -94,7 +96,7 @@ fun LibraryAlbumsScreen(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val scrollToTop = backStackEntry?.savedStateHandle?.getStateFlow("scrollToTop", false)?.collectAsState()
 
-    LaunchedEffect(Unit) { if (context.isSyncEnabled()) viewModel.sync() }
+    LaunchedEffect(Unit) { if (context.isSyncEnabled()) viewModel.syncAlbums() }
 
     LaunchedEffect(scrollToTop?.value) {
         if (scrollToTop?.value == true) {
@@ -115,7 +117,12 @@ fun LibraryAlbumsScreen(
                     AlbumFilter.DOWNLOADED to stringResource(R.string.filter_downloaded)
                 ),
                 currentValue = filter,
-                onValueUpdate = { filter = it },
+                onValueUpdate = {
+                    filter = it
+                    if (context.isSyncEnabled()){
+                        if (it == AlbumFilter.LIBRARY) viewModel.syncAlbums()
+                    }
+                },
                 modifier = Modifier.weight(1f),
                 isLoading = { filter -> filter == AlbumFilter.LIBRARY && isSyncingLibraryAlbums }
             )
@@ -163,11 +170,13 @@ fun LibraryAlbumsScreen(
 
             Spacer(Modifier.weight(1f))
 
-            Text(
-                text = pluralStringResource(R.plurals.n_album, albums.size, albums.size),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.secondary
-            )
+            albums?.let { albums ->
+                Text(
+                    text = pluralStringResource(R.plurals.n_album, albums.size, albums.size),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
         }
     }
 
@@ -194,19 +203,30 @@ fun LibraryAlbumsScreen(
                         headerContent()
                     }
 
-                    items(
-                        items = albums,
-                        key = { it.id },
-                        contentType = { CONTENT_TYPE_ALBUM }
-                    ) { album ->
-                        LibraryAlbumListItem(
-                            navController = navController,
-                            menuState = menuState,
-                            album = album,
-                            isActive = album.id == mediaMetadata?.album?.id,
-                            isPlaying = isPlaying,
-                            modifier = Modifier.animateItemPlacement()
-                        )
+                    albums?.let { albums ->
+                        if (albums.isEmpty()) {
+                            item {
+                                EmptyPlaceholder(
+                                    icon = Icons.Rounded.Album,
+                                    text = stringResource(R.string.library_album_empty),
+                                    modifier = Modifier.animateItem()
+                                )
+                            }
+                        }
+                        items(
+                            items = albums,
+                            key = { it.id },
+                            contentType = { CONTENT_TYPE_ALBUM }
+                        ) { album ->
+                            LibraryAlbumListItem(
+                                navController = navController,
+                                menuState = menuState,
+                                album = album,
+                                isActive = album.id == mediaMetadata?.album?.id,
+                                isPlaying = isPlaying,
+                                modifier = Modifier.animateItem()
+                            )
+                        }
                     }
                 }
 
@@ -232,20 +252,31 @@ fun LibraryAlbumsScreen(
                         headerContent()
                     }
 
-                    items(
-                        items = albums,
-                        key = { it.id },
-                        contentType = { CONTENT_TYPE_ALBUM }
-                    ) { album ->
-                        LibraryAlbumGridItem(
-                            navController = navController,
-                            menuState = menuState,
-                            coroutineScope = coroutineScope,
-                            album = album,
-                            isActive = album.id == mediaMetadata?.album?.id,
-                            isPlaying = isPlaying,
-                            modifier = Modifier.animateItemPlacement()
-                        )
+                    albums?.let { albums ->
+                        if (albums.isEmpty()) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                EmptyPlaceholder(
+                                    icon = Icons.Rounded.Album,
+                                    text = stringResource(R.string.library_album_empty),
+                                    modifier = Modifier.animateItem()
+                                )
+                            }
+                        }
+                        items(
+                            items = albums,
+                            key = { it.id },
+                            contentType = { CONTENT_TYPE_ALBUM }
+                        ) { album ->
+                            LibraryAlbumGridItem(
+                                navController = navController,
+                                menuState = menuState,
+                                coroutineScope = coroutineScope,
+                                album = album,
+                                isActive = album.id == mediaMetadata?.album?.id,
+                                isPlaying = isPlaying,
+                                modifier = Modifier.animateItem()
+                            )
+                        }
                     }
                 }
         }

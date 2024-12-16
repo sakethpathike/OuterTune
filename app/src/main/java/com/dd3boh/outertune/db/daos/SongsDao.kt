@@ -56,9 +56,10 @@ interface SongsDao {
                      WHERE timestamp > :fromTimeStamp
                      GROUP BY songId
                      ORDER BY SUM(playTime) DESC
-                     LIMIT :limit)
+                     LIMIT :limit
+                     OFFSET :offset)
     """)
-    fun mostPlayedSongs(fromTimeStamp: Long, limit: Int = 6): Flow<List<Song>>
+    fun mostPlayedSongs(fromTimeStamp: Long, limit: Int = 6, offset: Int = 0): Flow<List<Song>>
 
     @Query("SELECT sum(count) from playCount WHERE song = :songId")
     fun getLifetimePlayCount(songId: String?): Flow<Int>
@@ -68,6 +69,9 @@ interface SongsDao {
 
     @Query("SELECT count from playCount WHERE song = :songId AND year = :year AND month = :month")
     fun getPlayCountByMonth(songId: String?, year: Int, month: Int): Flow<Int>
+
+    @Query("SELECT * FROM song WHERE liked AND dateDownload IS NULL")
+    fun likedSongsNotDownloaded(): Flow<List<Song>>
 
     // region Songs Sort
     @Query("SELECT * FROM song WHERE inLibrary IS NOT NULL ORDER BY rowId")
@@ -96,6 +100,9 @@ interface SongsDao {
         ) COLLATE NOCASE
     """)
     fun songsByArtistAsc(): Flow<List<Song>>
+
+    @Query("SELECT song.* FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = :artistId AND inLibrary IS NOT NULL LIMIT :previewSize")
+    fun artistSongsPreview(artistId: String, previewSize: Int = 3): Flow<List<Song>>
 
     @Query("SELECT * FROM song WHERE inLibrary IS NOT NULL ORDER BY totalPlayTime")
     fun songsByPlayTimeAsc(): Flow<List<Song>>
@@ -264,7 +271,7 @@ interface SongsDao {
         }
     }
 
-    @Query("UPDATE song SET inLibrary = :inLibrary WHERE id = :songId")
+    @Query("UPDATE song SET inLibrary = :inLibrary WHERE id = :songId AND inLibrary IS NULL")
     fun inLibrary(songId: String, inLibrary: LocalDateTime?)
 
     @Query("UPDATE song SET liked = 1 WHERE id = :songId")

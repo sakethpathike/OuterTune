@@ -66,6 +66,7 @@ import com.dd3boh.outertune.extensions.move
 import com.dd3boh.outertune.ui.component.AutoPlaylistGridItem
 import com.dd3boh.outertune.ui.component.AutoPlaylistListItem
 import com.dd3boh.outertune.ui.component.ChipsLazyRow
+import com.dd3boh.outertune.ui.component.EmptyPlaceholder
 import com.dd3boh.outertune.ui.component.LibraryAlbumGridItem
 import com.dd3boh.outertune.ui.component.LibraryAlbumListItem
 import com.dd3boh.outertune.ui.component.LibraryArtistGridItem
@@ -339,7 +340,7 @@ fun LibraryScreen(
                                             .clickable {
                                                 navController.navigate("auto_playlist/${likedPlaylist.id}")
                                             }
-                                            .animateItemPlacement()
+                                            .animateItem()
                                     )
                                 }
 
@@ -355,49 +356,61 @@ fun LibraryScreen(
                                             .clickable {
                                                 navController.navigate("auto_playlist/${downloadedPlaylist.id}")
                                             }
-                                            .animateItemPlacement()
+                                            .animateItem()
                                     )
                                 }
                             }
 
-                            items(
-                                items = allItems,
-                                key = { it.id },
-                                contentType = { CONTENT_TYPE_LIST }
-                            ) { item ->
-                                when (item) {
-                                    is Album -> {
-                                        LibraryAlbumListItem(
-                                            navController = navController,
-                                            menuState = menuState,
-                                            album = item,
-                                            isActive = item.id == mediaMetadata?.album?.id,
-                                            isPlaying = isPlaying,
-                                            modifier = Modifier.animateItemPlacement()
+                            allItems?.let { allItems ->
+                                if (allItems.isEmpty()) {
+                                    item {
+                                        EmptyPlaceholder(
+                                            icon = Icons.AutoMirrored.Rounded.List,
+                                            text = stringResource(R.string.library_album_empty),
+                                            modifier = Modifier.animateItem()
                                         )
                                     }
+                                }
 
-                                    is Artist -> {
-                                        LibraryArtistListItem(
-                                            navController = navController,
-                                            menuState = menuState,
-                                            coroutineScope = coroutineScope,
-                                            modifier = Modifier.animateItemPlacement(),
-                                            artist = item
-                                        )
+                                items(
+                                    items = allItems.distinctBy { it.hashCode() },
+                                    key = { it.hashCode() },
+                                    contentType = { CONTENT_TYPE_LIST }
+                                ) { item ->
+                                    when (item) {
+                                        is Album -> {
+                                            LibraryAlbumListItem(
+                                                navController = navController,
+                                                menuState = menuState,
+                                                album = item,
+                                                isActive = item.id == mediaMetadata?.album?.id,
+                                                isPlaying = isPlaying,
+                                                modifier = Modifier.animateItem()
+                                            )
+                                        }
+
+                                        is Artist -> {
+                                            LibraryArtistListItem(
+                                                navController = navController,
+                                                menuState = menuState,
+                                                coroutineScope = coroutineScope,
+                                                modifier = Modifier.animateItem(),
+                                                artist = item
+                                            )
+                                        }
+
+                                        is Playlist -> {
+                                            LibraryPlaylistListItem(
+                                                navController = navController,
+                                                menuState = menuState,
+                                                coroutineScope = coroutineScope,
+                                                playlist = item,
+                                                modifier = Modifier.animateItem()
+                                            )
+                                        }
+
+                                        else -> {}
                                     }
-
-                                    is Playlist -> {
-                                        LibraryPlaylistListItem(
-                                            navController = navController,
-                                            menuState = menuState,
-                                            coroutineScope = coroutineScope,
-                                            playlist = item,
-                                            modifier = Modifier.animateItemPlacement()
-                                        )
-                                    }
-
-                                    else -> {}
                                 }
                             }
                         }
@@ -439,7 +452,7 @@ fun LibraryScreen(
                                             .clickable {
                                                 navController.navigate("auto_playlist/${likedPlaylist.id}")
                                             }
-                                            .animateItemPlacement()
+                                            .animateItem()
                                     )
                                 }
 
@@ -456,50 +469,62 @@ fun LibraryScreen(
                                             .clickable {
                                                 navController.navigate("auto_playlist/${downloadedPlaylist.id}")
                                             }
-                                            .animateItemPlacement()
+                                            .animateItem()
                                     )
                                 }
                             }
 
-                            items(
-                                items = allItems,
-                                key = { it.id },
-                                contentType = { CONTENT_TYPE_LIST }
-                            ) { item ->
-                                when (item) {
-                                    is Album -> {
-                                        LibraryAlbumGridItem(
-                                            navController = navController,
-                                            menuState = menuState,
-                                            coroutineScope = coroutineScope,
-                                            album = item,
-                                            isActive = item.id == mediaMetadata?.album?.id,
-                                            isPlaying = isPlaying,
-                                            modifier = Modifier.animateItemPlacement()
+                            allItems?.let { allItems ->
+                                if (allItems.isEmpty()) {
+                                    item {
+                                        EmptyPlaceholder(
+                                            icon = Icons.AutoMirrored.Rounded.List,
+                                            text = stringResource(R.string.library_album_empty),
+                                            modifier = Modifier.animateItem()
                                         )
                                     }
+                                }
 
-                                    is Artist -> {
-                                        LibraryArtistGridItem(
-                                            navController = navController,
-                                            menuState = menuState,
-                                            coroutineScope = coroutineScope,
-                                            modifier = Modifier.animateItemPlacement(),
-                                            artist = item
-                                        )
+                                items(
+                                    items = allItems.distinctBy { it.hashCode() },
+                                    key = { it.hashCode() },
+                                    contentType = { CONTENT_TYPE_LIST }
+                                ) { item ->
+                                    when (item) {
+                                        is Album -> {
+                                            LibraryAlbumGridItem(
+                                                navController = navController,
+                                                menuState = menuState,
+                                                coroutineScope = coroutineScope,
+                                                album = item,
+                                                isActive = item.id == mediaMetadata?.album?.id,
+                                                isPlaying = isPlaying,
+                                                modifier = Modifier.animateItem()
+                                            )
+                                        }
+
+                                        is Artist -> {
+                                            LibraryArtistGridItem(
+                                                navController = navController,
+                                                menuState = menuState,
+                                                coroutineScope = coroutineScope,
+                                                modifier = Modifier.animateItem(),
+                                                artist = item
+                                            )
+                                        }
+
+                                        is Playlist -> {
+                                            LibraryPlaylistGridItem(
+                                                navController = navController,
+                                                menuState = menuState,
+                                                coroutineScope = coroutineScope,
+                                                playlist = item,
+                                                modifier = Modifier.animateItem()
+                                            )
+                                        }
+
+                                        else -> {}
                                     }
-
-                                    is Playlist -> {
-                                        LibraryPlaylistGridItem(
-                                            navController = navController,
-                                            menuState = menuState,
-                                            coroutineScope = coroutineScope,
-                                            playlist = item,
-                                            modifier = Modifier.animateItemPlacement()
-                                        )
-                                    }
-
-                                    else -> {}
                                 }
                             }
                         }
